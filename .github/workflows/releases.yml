@@ -39,7 +39,7 @@ jobs:
             /out "GoldenDictAutoSearch.exe"
 
       - name: ZIP
-        run: 7z a -tzip GoldenDictAutoSearch.zip GoldenDictAutoSearch.exe GoldenDictAutoSearch.ini assets/icon.ico
+        run: 7z a -tzip GoldenDictAutoSearch.zip GoldenDictAutoSearch.exe GoldenDictAutoSearch.ini assets/icon.ico LICENSE
 
       - name: Generate SHA256 checksums
         run: sha256sum GoldenDictAutoSearch.zip > GoldenDictAutoSearch.exe.sha256
