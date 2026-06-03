@@ -1,0 +1,285 @@
+#NoEnv
+#SingleInstance, Force
+#Persistent
+SendMode Input
+SetWorkingDir %A_ScriptDir%
+
+global BoundWindows, BoundWindowList, BoundCount
+global GD_Executable, GD_DefaultWindowMode, GD_DefaultGroupName, ToggleKey, IniPath
+global LastClickTime, StartWithWindows, shortcutPath
+
+BoundWindows := {}
+BoundWindowList := []
+BoundCount := 0
+LastClickTime := 0
+IniPath := A_ScriptDir . "\GoldenDictAutoSearch.ini"
+
+IniRead, GD_Executable, %IniPath%, GoldenDict, Executable, goldendict
+IniRead, GD_DefaultWindowMode, %IniPath%, GoldenDict, DefaultWindowMode, popup
+IniRead, GD_DefaultGroupName, %IniPath%, GoldenDict, DefaultGroupName, default
+IniRead, ToggleKey, %IniPath%, Hotkeys, ToggleKey, ^!+g
+
+startupDir := A_StartMenu . "\Programs\Startup"
+shortcutPath := startupDir . "\GoldenDict AutoSearch.lnk"
+StartWithWindows := FileExist(shortcutPath)
+
+Hotkey, %ToggleKey%, ToggleHandler
+Hotkey, ~LButton Up, OnLButtonUp
+
+BuildTrayMenu()
+SetTimer, UpdateTrayTip, 1000
+return
+
+OnLButtonUp:
+    global LastClickTime
+
+    if (!IsCurrentWindowBound())
+        return
+
+    now := A_TickCount
+    isDoubleClick := (now - LastClickTime < 300)
+    LastClickTime := now
+
+    if (!isDoubleClick)
+        return
+
+    Sleep, 50
+
+    oldClip := ClipboardAll
+    Clipboard := ""
+    Send, ^c
+    ClipWait, 0.5, 0
+
+    if (ErrorLevel) {
+        Clipboard := oldClip
+        return
+    }
+
+    text := Trim(Clipboard)
+    Clipboard := oldClip
+    oldClip := ""
+
+    if (text = "" || StrLen(text) > 1000)
+        return
+
+    SearchGoldenDict(text)
+return
+
+ToggleHandler:
+    ToggleBind()
+return
+
+ToggleBind() {
+    global BoundWindows, BoundWindowList, BoundCount
+
+    MouseGetPos, , , winId
+
+    if (!winId) {
+        ShowCenterTip("No window under cursor")
+        return
+    }
+
+    WinGet, winExe, ProcessName, ahk_id %winId%
+
+    if (!winExe) {
+        ShowCenterTip("Cannot get window info")
+        return
+    }
+
+    if (BoundWindows.HasKey(winExe)) {
+        UnbindWindow(winExe)
+        msg := "Unbound: " . winExe
+        ShowCenterTip(msg)
+    } else {
+        BindWindow(winExe)
+        msg := "Bound: " . winExe
+        ShowCenterTip(msg)
+    }
+
+    BuildTrayMenu()
+}
+
+ShowCenterTip(text) {
+    WinGetPos, x, y, w, h, A
+    if (x = "" || w = "") {
+        ToolTip, %text%
+        SetTimer, RemoveToolTip, -1500
+        return
+    }
+    centerX := x + w // 2
+    centerY := y + h // 2
+    ToolTip, %text%, centerX, centerY
+    SetTimer, RemoveToolTip, -1500
+}
+
+BindWindow(winExe) {
+    global BoundWindows, BoundWindowList, BoundCount
+
+    if (!BoundWindows.HasKey(winExe)) {
+        BoundWindows[winExe] := true
+        BoundWindowList.Push(winExe)
+        BoundCount++
+    }
+}
+
+UnbindWindow(winExe) {
+    global BoundWindows, BoundWindowList, BoundCount
+
+    if (BoundWindows.HasKey(winExe)) {
+        BoundWindows.Delete(winExe)
+
+        newList := []
+        Loop, % BoundWindowList.Length() {
+            exe := BoundWindowList[A_Index]
+            if (exe != winExe)
+                newList.Push(exe)
+        }
+        BoundWindowList := newList
+        BoundCount--
+    }
+}
+
+IsCurrentWindowBound() {
+    global BoundWindows, BoundCount
+
+    if (BoundCount = 0)
+        return false
+
+    WinGet, currentExe, ProcessName, A
+    return BoundWindows.HasKey(currentExe)
+}
+
+SearchGoldenDict(query) {
+    global GD_Executable, GD_DefaultWindowMode, GD_DefaultGroupName
+
+    if (GD_DefaultWindowMode = "main")
+        param := "--group-name"
+    else
+        param := "--popup-group-name"
+
+    Run, "%GD_Executable%" %param%="%GD_DefaultGroupName%" "%query%"
+}
+
+ToggleWindowMode:
+    global GD_DefaultWindowMode, IniPath
+    if (GD_DefaultWindowMode = "main") {
+        GD_DefaultWindowMode := "popup"
+        IniWrite, popup, %IniPath%, GoldenDict, DefaultWindowMode
+    } else {
+        GD_DefaultWindowMode := "main"
+        IniWrite, main, %IniPath%, GoldenDict, DefaultWindowMode
+    }
+    BuildTrayMenu()
+return
+
+BuildTrayMenu() {
+    global BoundCount, BoundWindowList, StartWithWindows, GD_DefaultWindowMode
+
+    Menu, Tray, NoStandard
+    Menu, Tray, DeleteAll
+
+    if (GD_DefaultWindowMode = "popup")
+        Menu, Tray, Add, Window Mode: Popup (click to switch), ToggleWindowMode
+    else
+        Menu, Tray, Add, Window Mode: Main (click to switch), ToggleWindowMode
+
+    Menu, Tray, Add, Clear All Bound Windows, ClearBindings
+
+    if (StartWithWindows) {
+        Menu, Tray, Add, Start with Windows, ToggleStartup
+        Menu, Tray, Check, Start with Windows
+    } else {
+        Menu, Tray, Add, Start with Windows, ToggleStartup
+    }
+
+    Menu, Tray, Add, Suspend Hotkeys, SuspendHotkeys
+    Menu, Tray, Add, Pause Script, PauseScript
+    Menu, Tray, Add, Exit, AppExit
+}
+
+UnbindMenuItem:
+return
+
+ShowBoundWindows:
+return
+
+ToggleStartup:
+    global StartWithWindows, shortcutPath
+    if (StartWithWindows) {
+        FileDelete, %shortcutPath%
+        StartWithWindows := false
+        Menu, Tray, Uncheck, Start with Windows
+    } else {
+        FileCreateShortcut, %A_ScriptFullPath%, %shortcutPath%, %A_ScriptDir%
+        StartWithWindows := true
+        Menu, Tray, Check, Start with Windows
+    }
+return
+
+ClearBindings:
+    global BoundWindows, BoundWindowList, BoundCount
+    BoundWindows := {}
+    BoundWindowList := []
+    BoundCount := 0
+    ShowCenterTip("All bindings cleared")
+    BuildTrayMenu()
+return
+
+UpdateTrayTip:
+    global BoundCount, ToggleKey, GD_DefaultGroupName, BoundWindowList
+
+    tip := "GoldenDict AutoSearch"
+    tip := tip . "`nToggle: " . ToggleKey
+    tip := tip . "`nGroup: " . GD_DefaultGroupName
+
+    if (BoundCount > 0) {
+        sortedList := []
+        Loop, % BoundWindowList.Length() {
+            exe := BoundWindowList[A_Index]
+            sortedList.Push(exe)
+        }
+
+        Loop, % sortedList.Length() {
+            i := A_Index
+            Loop, % sortedList.Length() - i {
+                if (sortedList[A_Index] > sortedList[A_Index + 1]) {
+                    temp := sortedList[A_Index]
+                    sortedList[A_Index] := sortedList[A_Index + 1]
+                    sortedList[A_Index + 1] := temp
+                }
+            }
+        }
+
+        tip := tip . "`nBind Windows [" . BoundCount . "]"
+        Loop, % sortedList.Length() {
+            exe := sortedList[A_Index]
+            tip := tip . "`n  " . exe
+        }
+    }
+
+    Menu, Tray, Tip, %tip%
+return
+
+RemoveToolTip:
+    ToolTip
+return
+
+SuspendHotkeys:
+    Suspend, Toggle
+    if (A_IsSuspended)
+        Menu, Tray, Check, Suspend Hotkeys
+    else
+        Menu, Tray, Uncheck, Suspend Hotkeys
+return
+
+PauseScript:
+    Pause, Toggle
+    if (A_IsPaused)
+        Menu, Tray, Check, Pause Script
+    else
+        Menu, Tray, Uncheck, Pause Script
+return
+
+AppExit:
+    ExitApp
+return
