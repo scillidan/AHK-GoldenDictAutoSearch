@@ -8,6 +8,8 @@ Auto search selected word in GoldenDict by double-click.
 
 Authors: GLM-5🧙‍♂️, scillidan🤡.
 
+The icon is from [SimpleKeys](https://beamedeighth.itch.io/simplekeys-animated-pixel-keyboard-keys) by [beamedeighth](https://beamedeighth.itch.io/).
+
 ## Usage
 
 1. Press `Ctrl+Alt+Shift+G` to bind a window
