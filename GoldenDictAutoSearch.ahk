@@ -182,18 +182,17 @@ BuildTrayMenu() {
         Menu, Tray, Add, Window Mode: Popup (click to switch), ToggleWindowMode
     else
         Menu, Tray, Add, Window Mode: Main (click to switch), ToggleWindowMode
-
     Menu, Tray, Add, Clear All Bound Windows, ClearBindings
 
+    Menu, Tray, Add
     if (StartWithWindows) {
         Menu, Tray, Add, Start with Windows, ToggleStartup
         Menu, Tray, Check, Start with Windows
     } else {
         Menu, Tray, Add, Start with Windows, ToggleStartup
     }
-
-    Menu, Tray, Add, Suspend Hotkeys, SuspendHotkeys
-    Menu, Tray, Add, Pause Script, PauseScript
+    Menu, Tray, Add, Edit Config, EditConfig
+    Menu, Tray, Add, Reload, ReloadApp
     Menu, Tray, Add, Exit, AppExit
 }
 
@@ -278,6 +277,20 @@ PauseScript:
         Menu, Tray, Check, Pause Script
     else
         Menu, Tray, Uncheck, Pause Script
+return
+
+EditConfig:
+    global IniPath
+    Run, edit "%IniPath%"
+return
+
+ReloadApp:
+    TrayTip, GoldenDict AutoSearch, Config reloaded, 2, 1
+    SetTimer, DoReload, -500
+return
+
+DoReload:
+    Reload
 return
 
 AppExit:
