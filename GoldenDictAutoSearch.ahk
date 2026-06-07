@@ -196,12 +196,6 @@ BuildTrayMenu() {
     Menu, Tray, Add, Exit, AppExit
 }
 
-UnbindMenuItem:
-return
-
-ShowBoundWindows:
-return
-
 ToggleStartup:
     global StartWithWindows, shortcutPath
     if (StartWithWindows) {
@@ -261,22 +255,6 @@ return
 
 RemoveToolTip:
     ToolTip
-return
-
-SuspendHotkeys:
-    Suspend, Toggle
-    if (A_IsSuspended)
-        Menu, Tray, Check, Suspend Hotkeys
-    else
-        Menu, Tray, Uncheck, Suspend Hotkeys
-return
-
-PauseScript:
-    Pause, Toggle
-    if (A_IsPaused)
-        Menu, Tray, Check, Pause Script
-    else
-        Menu, Tray, Uncheck, Pause Script
 return
 
 EditConfig:
