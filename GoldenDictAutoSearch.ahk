@@ -238,24 +238,20 @@ BuildTrayMenu() {
 
     Menu, Tray, NoStandard
     Menu, Tray, DeleteAll
-
     if (DoubleClickEnabled) {
         Menu, Tray, Add, DoubleClick Mode: On, ToggleDoubleClick
         Menu, Tray, Check, DoubleClick Mode: On
     } else {
         Menu, Tray, Add, DoubleClick Mode: Off, ToggleDoubleClick
     }
-
     if (ClipboardEnabled) {
         Menu, Tray, Add, Clipboard Mode: On, ToggleClipboard
         Menu, Tray, Check, Clipboard Mode: On
     } else {
         Menu, Tray, Add, Clipboard Mode: Off, ToggleClipboard
     }
-    Menu, Tray, Add, Clear All Bound Windows, ClearBindings
-
     Menu, Tray, Add
-
+    Menu, Tray, Add, Clear All Bound Windows, ClearBindings
     if (clipboardHotkeyEnabled) {
         Menu, Tray, Add, Clipboard Hotkey (Popup Search): On, ToggleClipboardHotkey
         Menu, Tray, Check, Clipboard Hotkey (Popup Search): On
