@@ -5,19 +5,26 @@ SendMode Input
 SetWorkingDir %A_ScriptDir%
 
 global BoundWindows, BoundWindowList, BoundCount
-global GD_Executable, GD_DefaultGroupName, ToggleKey, IniPath
+global GD_Executable, GD_DoubleClickGroup, GD_ClipboardGroup, ToggleKey, IniPath
 global LastClickTime, StartWithWindows, shortcutPath, scriptEditor, clipboardHotkeyEnabled
+global DoubleClickEnabled, ClipboardEnabled, LastClipText
 
 BoundWindows := {}
 BoundWindowList := []
 BoundCount := 0
 LastClickTime := 0
+LastClipText := ""
 IniPath := A_ScriptDir . "\GoldenDictAutoSearch.ini"
 
 IniRead, GD_Executable, %IniPath%, GoldenDict, Executable, goldendict
-IniRead, GD_DefaultGroupName, %IniPath%, GoldenDict, DefaultGroupName, default
+IniRead, GD_DoubleClickGroup, %IniPath%, GoldenDict, DoubleClickGroup, default
+IniRead, GD_ClipboardGroup, %IniPath%, GoldenDict, ClipboardGroup, translate
 IniRead, clipboardHotkeyEnabled, %IniPath%, GoldenDict, ClipboardHotkeyEnabled, off
 clipboardHotkeyEnabled := (clipboardHotkeyEnabled = "on" || clipboardHotkeyEnabled = "1" || clipboardHotkeyEnabled = "true")
+IniRead, DoubleClickEnabled, %IniPath%, Settings, DoubleClickEnabled, on
+DoubleClickEnabled := (DoubleClickEnabled = "on" || DoubleClickEnabled = "1" || DoubleClickEnabled = "true")
+IniRead, ClipboardEnabled, %IniPath%, Settings, ClipboardEnabled, off
+ClipboardEnabled := (ClipboardEnabled = "on" || ClipboardEnabled = "1" || ClipboardEnabled = "true")
 IniRead, ToggleKey, %IniPath%, Hotkeys, ToggleKey, ^!+g
 
 EnvGet, envEditor, EDITOR
@@ -30,14 +37,22 @@ shortcutPath := startupDir . "\GoldenDict AutoSearch.lnk"
 StartWithWindows := FileExist(shortcutPath)
 
 Hotkey, %ToggleKey%, ToggleHandler
+
 Hotkey, ~LButton Up, OnLButtonUp
+if (!DoubleClickEnabled)
+    Hotkey, ~LButton Up, Off
+
+if (ClipboardEnabled) {
+    LastClipText := Trim(Clipboard)
+    SetTimer, ClipMonitorTimer, 500
+}
 
 BuildTrayMenu()
 SetTimer, UpdateTrayTip, 1000
 return
 
 OnLButtonUp:
-    global LastClickTime
+    global LastClickTime, LastClipText
 
     if (!IsCurrentWindowBound())
         return
@@ -68,7 +83,25 @@ OnLButtonUp:
     if (text = "" || StrLen(text) > 1000)
         return
 
-    SearchGoldenDict(text)
+    LastClipText := text
+    SearchGoldenDict(text, "DoubleClick")
+return
+
+ClipMonitorTimer:
+    global LastClipText
+
+    if (!IsCurrentWindowBound())
+        return
+
+    clipText := Trim(Clipboard)
+    if (clipText = "" || StrLen(clipText) > 1000)
+        return
+
+    if (clipText = LastClipText)
+        return
+
+    LastClipText := clipText
+    SearchGoldenDict(clipText, "Clipboard")
 return
 
 ToggleHandler:
@@ -155,32 +188,73 @@ IsCurrentWindowBound() {
     return BoundWindows.HasKey(currentExe)
 }
 
-SearchGoldenDict(query) {
-    global GD_Executable, GD_DefaultGroupName, clipboardHotkeyEnabled
+SearchGoldenDict(query, mode) {
+    global GD_Executable, GD_DoubleClickGroup, GD_ClipboardGroup, clipboardHotkeyEnabled
 
+    group := (mode = "Clipboard") ? GD_ClipboardGroup : GD_DoubleClickGroup
     groupParam := clipboardHotkeyEnabled ? "--popup-group-name" : "--group-name"
-    Run, "%GD_Executable%" %groupParam%="%GD_DefaultGroupName%" "%query%"
+    Run, "%GD_Executable%" %groupParam%="%group%" "%query%"
 }
+
+ToggleDoubleClick:
+    global DoubleClickEnabled, IniPath
+
+    DoubleClickEnabled := !DoubleClickEnabled
+    if (DoubleClickEnabled)
+        Hotkey, ~LButton Up, On
+    else
+        Hotkey, ~LButton Up, Off
+
+    IniWrite, % DoubleClickEnabled ? "on" : "off", %IniPath%, Settings, DoubleClickEnabled
+    BuildTrayMenu()
+return
+
+ToggleClipboard:
+    global ClipboardEnabled, IniPath, LastClipText
+
+    ClipboardEnabled := !ClipboardEnabled
+    if (ClipboardEnabled) {
+        LastClipText := Trim(Clipboard)
+        SetTimer, ClipMonitorTimer, 500
+    } else {
+        SetTimer, ClipMonitorTimer, Off
+    }
+
+    IniWrite, % ClipboardEnabled ? "on" : "off", %IniPath%, Settings, ClipboardEnabled
+    BuildTrayMenu()
+return
 
 ToggleClipboardHotkey:
     global clipboardHotkeyEnabled, IniPath
     clipboardHotkeyEnabled := !clipboardHotkeyEnabled
     newVal := clipboardHotkeyEnabled ? "on" : "off"
     IniWrite, %newVal%, %IniPath%, GoldenDict, ClipboardHotkeyEnabled
-    if (clipboardHotkeyEnabled) {
-        Menu, Tray, Rename, Clipboard Hotkey (Popup Search): Off, Clipboard Hotkey (Popup Search): On
-        Menu, Tray, Check, Clipboard Hotkey (Popup Search): On
-    } else {
-        Menu, Tray, Rename, Clipboard Hotkey (Popup Search): On, Clipboard Hotkey (Popup Search): Off
-        Menu, Tray, Uncheck, Clipboard Hotkey (Popup Search): Off
-    }
+    BuildTrayMenu()
 return
 
 BuildTrayMenu() {
     global BoundCount, BoundWindowList, StartWithWindows, clipboardHotkeyEnabled
+    global DoubleClickEnabled, ClipboardEnabled
 
     Menu, Tray, NoStandard
     Menu, Tray, DeleteAll
+
+    if (DoubleClickEnabled) {
+        Menu, Tray, Add, DoubleClick Mode: On, ToggleDoubleClick
+        Menu, Tray, Check, DoubleClick Mode: On
+    } else {
+        Menu, Tray, Add, DoubleClick Mode: Off, ToggleDoubleClick
+    }
+
+    if (ClipboardEnabled) {
+        Menu, Tray, Add, Clipboard Mode: On, ToggleClipboard
+        Menu, Tray, Check, Clipboard Mode: On
+    } else {
+        Menu, Tray, Add, Clipboard Mode: Off, ToggleClipboard
+    }
+    Menu, Tray, Add, Clear All Bound Windows, ClearBindings
+
+    Menu, Tray, Add
 
     if (clipboardHotkeyEnabled) {
         Menu, Tray, Add, Clipboard Hotkey (Popup Search): On, ToggleClipboardHotkey
@@ -188,9 +262,6 @@ BuildTrayMenu() {
     } else {
         Menu, Tray, Add, Clipboard Hotkey (Popup Search): Off, ToggleClipboardHotkey
     }
-    Menu, Tray, Add, Clear All Bound Windows, ClearBindings
-
-    Menu, Tray, Add
     if (StartWithWindows) {
         Menu, Tray, Add, Start with Windows, ToggleStartup
         Menu, Tray, Check, Start with Windows
@@ -225,11 +296,10 @@ ClearBindings:
 return
 
 UpdateTrayTip:
-    global BoundCount, ToggleKey, GD_DefaultGroupName, BoundWindowList
+    global BoundCount, ToggleKey, BoundWindowList
 
-    tip := "GoldenDict AutoSearch"
+    tip := "GoldenDict Auto Search"
     tip := tip . "`nToggle Key: " . ToggleKey
-    tip := tip . "`nGroup: " . GD_DefaultGroupName
 
     if (BoundCount > 0) {
         sortedList := []
