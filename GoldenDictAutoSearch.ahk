@@ -5,8 +5,8 @@ SendMode Input
 SetWorkingDir %A_ScriptDir%
 
 global BoundWindows, BoundWindowList, BoundCount
-global GD_Executable, GD_DefaultWindowMode, GD_DefaultGroupName, ToggleKey, IniPath
-global LastClickTime, StartWithWindows, shortcutPath
+global GD_Executable, GD_DefaultGroupName, ToggleKey, IniPath
+global LastClickTime, StartWithWindows, shortcutPath, scriptEditor, clipboardHotkeyEnabled
 
 BoundWindows := {}
 BoundWindowList := []
@@ -15,9 +15,15 @@ LastClickTime := 0
 IniPath := A_ScriptDir . "\GoldenDictAutoSearch.ini"
 
 IniRead, GD_Executable, %IniPath%, GoldenDict, Executable, goldendict
-IniRead, GD_DefaultWindowMode, %IniPath%, GoldenDict, DefaultWindowMode, popup
 IniRead, GD_DefaultGroupName, %IniPath%, GoldenDict, DefaultGroupName, default
+IniRead, clipboardHotkeyEnabled, %IniPath%, GoldenDict, ClipboardHotkeyEnabled, off
+clipboardHotkeyEnabled := (clipboardHotkeyEnabled = "on" || clipboardHotkeyEnabled = "1" || clipboardHotkeyEnabled = "true")
 IniRead, ToggleKey, %IniPath%, Hotkeys, ToggleKey, ^!+g
+
+EnvGet, envEditor, EDITOR
+IniRead, scriptEditor, %IniPath%, AutoHotkey, ScriptEditor, __MISSING__
+if (scriptEditor = "__MISSING__" || scriptEditor = "")
+    scriptEditor := envEditor != "" ? envEditor : "notepad"
 
 startupDir := A_StartMenu . "\Programs\Startup"
 shortcutPath := startupDir . "\GoldenDict AutoSearch.lnk"
@@ -150,38 +156,38 @@ IsCurrentWindowBound() {
 }
 
 SearchGoldenDict(query) {
-    global GD_Executable, GD_DefaultWindowMode, GD_DefaultGroupName
+    global GD_Executable, GD_DefaultGroupName, clipboardHotkeyEnabled
 
-    if (GD_DefaultWindowMode = "main")
-        param := "--group-name"
-    else
-        param := "--popup-group-name"
-
-    Run, "%GD_Executable%" %param%="%GD_DefaultGroupName%" "%query%"
+    groupParam := clipboardHotkeyEnabled ? "--popup-group-name" : "--group-name"
+    Run, "%GD_Executable%" %groupParam%="%GD_DefaultGroupName%" "%query%"
 }
 
-ToggleWindowMode:
-    global GD_DefaultWindowMode, IniPath
-    if (GD_DefaultWindowMode = "main") {
-        GD_DefaultWindowMode := "popup"
-        IniWrite, popup, %IniPath%, GoldenDict, DefaultWindowMode
+ToggleClipboardHotkey:
+    global clipboardHotkeyEnabled, IniPath
+    clipboardHotkeyEnabled := !clipboardHotkeyEnabled
+    newVal := clipboardHotkeyEnabled ? "on" : "off"
+    IniWrite, %newVal%, %IniPath%, GoldenDict, ClipboardHotkeyEnabled
+    if (clipboardHotkeyEnabled) {
+        Menu, Tray, Rename, Clipboard Hotkey (Popup Search): Off, Clipboard Hotkey (Popup Search): On
+        Menu, Tray, Check, Clipboard Hotkey (Popup Search): On
     } else {
-        GD_DefaultWindowMode := "main"
-        IniWrite, main, %IniPath%, GoldenDict, DefaultWindowMode
+        Menu, Tray, Rename, Clipboard Hotkey (Popup Search): On, Clipboard Hotkey (Popup Search): Off
+        Menu, Tray, Uncheck, Clipboard Hotkey (Popup Search): Off
     }
-    BuildTrayMenu()
 return
 
 BuildTrayMenu() {
-    global BoundCount, BoundWindowList, StartWithWindows, GD_DefaultWindowMode
+    global BoundCount, BoundWindowList, StartWithWindows, clipboardHotkeyEnabled
 
     Menu, Tray, NoStandard
     Menu, Tray, DeleteAll
 
-    if (GD_DefaultWindowMode = "popup")
-        Menu, Tray, Add, Window Mode: Popup (click to switch), ToggleWindowMode
-    else
-        Menu, Tray, Add, Window Mode: Main (click to switch), ToggleWindowMode
+    if (clipboardHotkeyEnabled) {
+        Menu, Tray, Add, Clipboard Hotkey (Popup Search): On, ToggleClipboardHotkey
+        Menu, Tray, Check, Clipboard Hotkey (Popup Search): On
+    } else {
+        Menu, Tray, Add, Clipboard Hotkey (Popup Search): Off, ToggleClipboardHotkey
+    }
     Menu, Tray, Add, Clear All Bound Windows, ClearBindings
 
     Menu, Tray, Add
@@ -222,7 +228,7 @@ UpdateTrayTip:
     global BoundCount, ToggleKey, GD_DefaultGroupName, BoundWindowList
 
     tip := "GoldenDict AutoSearch"
-    tip := tip . "`nToggle: " . ToggleKey
+    tip := tip . "`nToggle Key: " . ToggleKey
     tip := tip . "`nGroup: " . GD_DefaultGroupName
 
     if (BoundCount > 0) {
@@ -258,8 +264,8 @@ RemoveToolTip:
 return
 
 EditConfig:
-    global IniPath
-    Run, edit "%IniPath%"
+    global scriptEditor, IniPath
+    Run, %scriptEditor% "%IniPath%"
 return
 
 ReloadApp:
