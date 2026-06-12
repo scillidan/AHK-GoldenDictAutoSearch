@@ -7,13 +7,15 @@ SetWorkingDir %A_ScriptDir%
 global BoundWindows, BoundWindowList, BoundCount
 global GD_Executable, GD_DoubleClickGroup, GD_ClipboardGroup, ToggleKey, IniPath
 global LastClickTime, StartWithWindows, shortcutPath, scriptEditor, clipboardHotkeyEnabled
-global DoubleClickEnabled, ClipboardEnabled, LastClipText
+global DoubleClickEnabled, ClipboardEnabled, DC_LastText, CB_LastText, ClipGuardTick
 
 BoundWindows := {}
 BoundWindowList := []
 BoundCount := 0
 LastClickTime := 0
-LastClipText := ""
+DC_LastText := ""
+CB_LastText := ""
+ClipGuardTick := 0
 IniPath := A_ScriptDir . "\GoldenDictAutoSearch.ini"
 
 IniRead, GD_Executable, %IniPath%, GoldenDict, Executable, goldendict
@@ -43,7 +45,7 @@ if (!DoubleClickEnabled)
     Hotkey, ~LButton Up, Off
 
 if (ClipboardEnabled) {
-    LastClipText := Trim(Clipboard)
+    CB_LastText := Trim(Clipboard)
     SetTimer, ClipMonitorTimer, 500
 }
 
@@ -52,7 +54,7 @@ SetTimer, UpdateTrayTip, 1000
 return
 
 OnLButtonUp:
-    global LastClickTime, LastClipText
+    global LastClickTime, DC_LastText, ClipGuardTick
 
     if (!IsCurrentWindowBound())
         return
@@ -66,6 +68,7 @@ OnLButtonUp:
 
     Sleep, 50
 
+    ClipGuardTick := A_TickCount
     oldClip := ClipboardAll
     Clipboard := ""
     Send, ^c
@@ -83,12 +86,15 @@ OnLButtonUp:
     if (text = "" || StrLen(text) > 1000)
         return
 
-    LastClipText := text
+    DC_LastText := text
     SearchGoldenDict(text, "DoubleClick")
 return
 
 ClipMonitorTimer:
-    global LastClipText
+    global CB_LastText, ClipGuardTick
+
+    if (A_TickCount - ClipGuardTick < 1500)
+        return
 
     if (!IsCurrentWindowBound())
         return
@@ -97,10 +103,10 @@ ClipMonitorTimer:
     if (clipText = "" || StrLen(clipText) > 1000)
         return
 
-    if (clipText = LastClipText)
+    if (clipText = CB_LastText)
         return
 
-    LastClipText := clipText
+    CB_LastText := clipText
     SearchGoldenDict(clipText, "Clipboard")
 return
 
@@ -210,11 +216,11 @@ ToggleDoubleClick:
 return
 
 ToggleClipboard:
-    global ClipboardEnabled, IniPath, LastClipText
+    global ClipboardEnabled, IniPath, CB_LastText
 
     ClipboardEnabled := !ClipboardEnabled
     if (ClipboardEnabled) {
-        LastClipText := Trim(Clipboard)
+        CB_LastText := Trim(Clipboard)
         SetTimer, ClipMonitorTimer, 500
     } else {
         SetTimer, ClipMonitorTimer, Off
