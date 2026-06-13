@@ -96,10 +96,14 @@ ClipMonitorTimer:
     if (A_TickCount - ClipGuardTick < 1500)
         return
 
-    if (!IsCurrentWindowBound())
-        return
-
     clipText := Trim(Clipboard)
+
+    if (!IsCurrentWindowBound()) {
+        if (clipText != "" && StrLen(clipText) <= 1000)
+            CB_LastText := clipText
+        return
+    }
+
     if (clipText = "" || StrLen(clipText) > 1000)
         return
 
