@@ -50,10 +50,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
-        shell: bash
         run: |
-          gh release create "$TAG_NAME" \
-            GoldenDictAutoSearch.zip \
-            GoldenDictAutoSearch.zip.sha256 \
-            --title "$TAG_NAME" \
+          gh release create "$env:TAG_NAME" `
+            GoldenDictAutoSearch.zip `
+            GoldenDictAutoSearch.zip.sha256 `
+            --title "$env:TAG_NAME" `
             --generate-notes
