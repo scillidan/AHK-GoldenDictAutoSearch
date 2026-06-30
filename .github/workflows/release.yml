@@ -1,9 +1,9 @@
-name: Create release
+name: Release
 
 on:
   push:
     tags:
-      - "*"
+      - "v*"
   workflow_dispatch:
     inputs:
       version:
@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: windows-latest
 
     steps:
@@ -49,9 +49,11 @@ jobs:
       - name: Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+        shell: bash
         run: |
-          gh release create "${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}" \
+          gh release create "$TAG_NAME" \
             GoldenDictAutoSearch.zip \
             GoldenDictAutoSearch.zip.sha256 \
-            --title "${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}" \
+            --title "$TAG_NAME" \
             --generate-notes
