@@ -1,12 +1,18 @@
-#NoEnv
 #SingleInstance, Force
 #Persistent
-SendMode Input
-SetWorkingDir %A_ScriptDir%
+
+scriptDir := A_ScriptDir
+iniPath := scriptDir . "\GoldenDictAutoSearch.ini"
+trayIcon := scriptDir . "\assets\icon.ico"
+
+if (!FileExist(iniPath)) {
+    MsgBox, 0x10, Error, Configuration file not found:`n%iniPath%
+    ExitApp
+}
 
 global BoundWindows, BoundWindowList, BoundCount
-global GD_Executable, GD_DoubleClickGroup, GD_ClipboardGroup, ToggleKey, IniPath
-global LastClickTime, StartWithWindows, shortcutPath, scriptEditor, clipboardHotkeyEnabled
+global GD_Executable, GD_DoubleClickGroup, GD_ClipboardGroup, toggleKey, iniPath
+global LastClickTime, isStartup, shortcutPath, scriptEditor, clipboardHotkeyEnabled
 global DoubleClickEnabled, ClipboardEnabled, DC_LastText, CB_LastText, ClipGuardTick
 
 BoundWindows := {}
@@ -16,29 +22,28 @@ LastClickTime := 0
 DC_LastText := ""
 CB_LastText := ""
 ClipGuardTick := 0
-IniPath := A_ScriptDir . "\GoldenDictAutoSearch.ini"
 
-IniRead, GD_Executable, %IniPath%, GoldenDict, Executable, goldendict
-IniRead, GD_DoubleClickGroup, %IniPath%, GoldenDict, DoubleClickGroup, default
-IniRead, GD_ClipboardGroup, %IniPath%, GoldenDict, ClipboardGroup, translate
-IniRead, clipboardHotkeyEnabled, %IniPath%, GoldenDict, ClipboardHotkeyEnabled, off
+IniRead, GD_Executable, %iniPath%, GoldenDict, Executable, goldendict
+IniRead, GD_DoubleClickGroup, %iniPath%, GoldenDict, DoubleClickGroup, default
+IniRead, GD_ClipboardGroup, %iniPath%, GoldenDict, ClipboardGroup, translate
+IniRead, clipboardHotkeyEnabled, %iniPath%, GoldenDict, ClipboardHotkeyEnabled, off
 clipboardHotkeyEnabled := (clipboardHotkeyEnabled = "on" || clipboardHotkeyEnabled = "1" || clipboardHotkeyEnabled = "true")
-IniRead, DoubleClickEnabled, %IniPath%, Settings, DoubleClickEnabled, on
+IniRead, DoubleClickEnabled, %iniPath%, Settings, DoubleClickEnabled, on
 DoubleClickEnabled := (DoubleClickEnabled = "on" || DoubleClickEnabled = "1" || DoubleClickEnabled = "true")
-IniRead, ClipboardEnabled, %IniPath%, Settings, ClipboardEnabled, off
+IniRead, ClipboardEnabled, %iniPath%, Settings, ClipboardEnabled, off
 ClipboardEnabled := (ClipboardEnabled = "on" || ClipboardEnabled = "1" || ClipboardEnabled = "true")
-IniRead, ToggleKey, %IniPath%, Hotkeys, ToggleKey, ^!+g
+IniRead, toggleKey, %iniPath%, Hotkeys, ToggleKey, ^!+g
 
 EnvGet, envEditor, EDITOR
-IniRead, scriptEditor, %IniPath%, AutoHotkey, ScriptEditor, __MISSING__
+IniRead, scriptEditor, %iniPath%, AutoHotkey, ScriptEditor, __MISSING__
 if (scriptEditor = "__MISSING__" || scriptEditor = "")
     scriptEditor := envEditor != "" ? envEditor : "notepad"
 
 startupDir := A_StartMenu . "\Programs\Startup"
 shortcutPath := startupDir . "\GoldenDict AutoSearch.lnk"
-StartWithWindows := FileExist(shortcutPath)
+isStartup := FileExist(shortcutPath)
 
-Hotkey, %ToggleKey%, ToggleHandler
+Hotkey, %toggleKey%, ToggleHandler
 
 Hotkey, ~LButton Up, OnLButtonUp
 if (!DoubleClickEnabled)
@@ -207,7 +212,7 @@ SearchGoldenDict(query, mode) {
 }
 
 ToggleDoubleClick:
-    global DoubleClickEnabled, IniPath
+    global DoubleClickEnabled, iniPath
 
     DoubleClickEnabled := !DoubleClickEnabled
     if (DoubleClickEnabled)
@@ -215,12 +220,12 @@ ToggleDoubleClick:
     else
         Hotkey, ~LButton Up, Off
 
-    IniWrite, % DoubleClickEnabled ? "on" : "off", %IniPath%, Settings, DoubleClickEnabled
+    IniWrite, % DoubleClickEnabled ? "on" : "off", %iniPath%, Settings, DoubleClickEnabled
     BuildTrayMenu()
 return
 
 ToggleClipboard:
-    global ClipboardEnabled, IniPath, CB_LastText
+    global ClipboardEnabled, iniPath, CB_LastText
 
     ClipboardEnabled := !ClipboardEnabled
     if (ClipboardEnabled) {
@@ -230,20 +235,20 @@ ToggleClipboard:
         SetTimer, ClipMonitorTimer, Off
     }
 
-    IniWrite, % ClipboardEnabled ? "on" : "off", %IniPath%, Settings, ClipboardEnabled
+    IniWrite, % ClipboardEnabled ? "on" : "off", %iniPath%, Settings, ClipboardEnabled
     BuildTrayMenu()
 return
 
 ToggleClipboardHotkey:
-    global clipboardHotkeyEnabled, IniPath
+    global clipboardHotkeyEnabled, iniPath
     clipboardHotkeyEnabled := !clipboardHotkeyEnabled
     newVal := clipboardHotkeyEnabled ? "on" : "off"
-    IniWrite, %newVal%, %IniPath%, GoldenDict, ClipboardHotkeyEnabled
+    IniWrite, %newVal%, %iniPath%, GoldenDict, ClipboardHotkeyEnabled
     BuildTrayMenu()
 return
 
 BuildTrayMenu() {
-    global BoundCount, BoundWindowList, StartWithWindows, clipboardHotkeyEnabled
+    global BoundCount, BoundWindowList, isStartup, clipboardHotkeyEnabled
     global DoubleClickEnabled, ClipboardEnabled
 
     Menu, Tray, NoStandard
@@ -265,7 +270,7 @@ BuildTrayMenu() {
     } else {
         Menu, Tray, Add, Clipboard Hotkey (Popup Search): Off, ToggleClipboardHotkey
     }
-    if (StartWithWindows) {
+    if (isStartup) {
         Menu, Tray, Add, Start with Windows, ToggleStartup
         Menu, Tray, Check, Start with Windows
     } else {
@@ -277,14 +282,14 @@ BuildTrayMenu() {
 }
 
 ToggleStartup:
-    global StartWithWindows, shortcutPath
-    if (StartWithWindows) {
+    global isStartup, shortcutPath
+    if (isStartup) {
         FileDelete, %shortcutPath%
-        StartWithWindows := false
+        isStartup := false
         Menu, Tray, Uncheck, Start with Windows
     } else {
         FileCreateShortcut, %A_ScriptFullPath%, %shortcutPath%, %A_ScriptDir%
-        StartWithWindows := true
+        isStartup := true
         Menu, Tray, Check, Start with Windows
     }
 return
@@ -299,10 +304,10 @@ ClearBindings:
 return
 
 UpdateTrayTip:
-    global BoundCount, ToggleKey, BoundWindowList
+    global BoundCount, toggleKey, BoundWindowList
 
     tip := "GoldenDict Auto Search"
-    tip := tip . "`nToggle Key: " . ToggleKey
+    tip := tip . "`nToggle Key: " . toggleKey
 
     if (BoundCount > 0) {
         sortedList := []
@@ -337,8 +342,8 @@ RemoveToolTip:
 return
 
 EditConfig:
-    global scriptEditor, IniPath
-    Run, %scriptEditor% "%IniPath%"
+    global scriptEditor, iniPath
+    Run, %scriptEditor% "%iniPath%"
 return
 
 ReloadApp:
