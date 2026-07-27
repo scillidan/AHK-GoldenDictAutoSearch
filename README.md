@@ -10,6 +10,13 @@ Authors: GLM-5🧙‍♂️, scillidan🤡
 
 The icon is from [SimpleKeys](https://beamedeighth.itch.io/simplekeys-animated-pixel-keyboard-keys) by [beamedeighth](https://beamedeighth.itch.io/).
 
+## Install
+
+```sh
+scoop bucket add pile https://github.com/scillidan/scoop-pile
+scoop install pile/goldendict-auto-search
+```
+
 ## Usage
 
 1. Press `Ctrl+Alt+Shift+G` to bind a window
